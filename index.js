@@ -1,6 +1,5 @@
 const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys")
 const P = require("pino")
-const qrcode = require("qrcode-terminal")
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("session")
@@ -13,16 +12,22 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds)
 
-    sock.ev.on("connection.update", (update) => {
-        const { connection, qr } = update
+    let sudahMintaKode = false
 
-        if (qr) {
-            console.log("\n🔥 SCAN QR INI:\n")
-            qrcode.generate(qr, { small: true })
+    sock.ev.on("connection.update", async (update) => {
+        const { connection } = update
+
+        if (connection === "connecting" && !sudahMintaKode) {
+            sudahMintaKode = true
+
+            const nomor = "6283847956426" // GANTI NOMOR KAMU
+            const code = await sock.requestPairingCode(nomor)
+
+            console.log("\n🔑 KODE PAIRING:", code)
         }
 
         if (connection === "open") {
-            console.log("✅ CONNECTED!")
+            console.log("✅ BOT CONNECTED!")
         }
 
         if (connection === "close") {
