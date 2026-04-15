@@ -12,33 +12,34 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds)
 
-    let sudahKirim = false
+    let sudahPairing = false
 
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update
 
         if (connection === "connecting") {
-            console.log("🔄 Menghubungkan...")
+            console.log("🔄 Menghubungkan ke WhatsApp...")
+        }
+
+        // 🔥 FIX: tunggu sedikit setelah connecting
+        if (!sudahPairing && connection === "connecting") {
+            sudahPairing = true
+
+            setTimeout(async () => {
+                try {
+                    const nomor = "6283847956426"
+                    const code = await sock.requestPairingCode(nomor)
+
+                    console.log("\n🔑 KODE PAIRING:", code)
+                    console.log("⚡ Masukkan ke WhatsApp SECEPATNYA!")
+                } catch (err) {
+                    console.log("❌ Pairing gagal:", err.message)
+                }
+            }, 7000) // ⏱️ delay 7 detik (lebih aman)
         }
 
         if (connection === "open") {
             console.log("✅ BOT CONNECTED!")
-        }
-
-        // 🔥 pairing code dengan delay (FIX ERROR 428)
-        if (!sudahKirim && connection === "connecting") {
-            sudahKirim = true
-
-            const nomor = "6283847956426" // ✅ NOMOR KAMU
-
-            setTimeout(async () => {
-                try {
-                    const code = await sock.requestPairingCode(nomor)
-                    console.log("\n🔑 KODE PAIRING:", code)
-                } catch (err) {
-                    console.log("❌ Gagal ambil pairing:", err.message)
-                }
-            }, 3000)
         }
 
         if (connection === "close") {
@@ -47,7 +48,8 @@ async function startBot() {
             console.log("❌ Disconnect:", reason)
 
             if (reason === DisconnectReason.loggedOut) {
-                console.log("⚠️ Session logout, scan ulang!")
+                console.log("⚠️ Session logout, ulang pairing!")
+                sudahPairing = false
             } else {
                 console.log("🔄 Reconnecting...")
                 startBot()
