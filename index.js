@@ -17,30 +17,16 @@ async function startBot() {
         const { connection, qr } = update
 
         if (qr) {
-            console.log("\nScan QR di WhatsApp:\n")
+            console.log("\n🔥 SCAN QR INI:\n")
             qrcode.generate(qr, { small: true })
         }
 
         if (connection === "open") {
-            console.log("✅ Bot berhasil connect!")
+            console.log("✅ CONNECTED!")
         }
 
         if (connection === "close") {
-            console.log("❌ Koneksi terputus, reconnect...")
-            startBot()
-        }
-    })
-
-    sock.ev.on("messages.upsert", async (msg) => {
-        const m = msg.messages[0]
-        if (!m.message) return
-
-        const text = m.message.conversation || m.message.extendedTextMessage?.text
-
-        console.log("📩 Pesan:", text)
-
-        if (text === "hai") {
-            await sock.sendMessage(m.key.remoteJid, { text: "Halo juga 👋" })
+            console.log("❌ Koneksi terputus...")
         }
     })
 }
