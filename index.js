@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys")
+const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys")
 const P = require("pino")
 
 async function startBot() {
@@ -12,48 +12,25 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds)
 
-    let sudahPairing = false
+    // 🔥 FIX: request pairing langsung setelah socket dibuat
+    const nomor = "6283847956426"
 
-    sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update
+    try {
+        const code = await sock.requestPairingCode(nomor)
+        console.log("\n🔑 KODE PAIRING:", code)
+    } catch (err) {
+        console.log("❌ Gagal pairing:", err.message)
+    }
 
-        if (connection === "connecting") {
-            console.log("🔄 Menghubungkan ke WhatsApp...")
-        }
-
-        // 🔥 FIX: tunggu sedikit setelah connecting
-        if (!sudahPairing && connection === "connecting") {
-            sudahPairing = true
-
-            setTimeout(async () => {
-                try {
-                    const nomor = "6283847956426"
-                    const code = await sock.requestPairingCode(nomor)
-
-                    console.log("\n🔑 KODE PAIRING:", code)
-                    console.log("⚡ Masukkan ke WhatsApp SECEPATNYA!")
-                } catch (err) {
-                    console.log("❌ Pairing gagal:", err.message)
-                }
-            }, 7000) // ⏱️ delay 7 detik (lebih aman)
-        }
+    sock.ev.on("connection.update", (update) => {
+        const { connection } = update
 
         if (connection === "open") {
             console.log("✅ BOT CONNECTED!")
         }
 
         if (connection === "close") {
-            const reason = lastDisconnect?.error?.output?.statusCode
-
-            console.log("❌ Disconnect:", reason)
-
-            if (reason === DisconnectReason.loggedOut) {
-                console.log("⚠️ Session logout, ulang pairing!")
-                sudahPairing = false
-            } else {
-                console.log("🔄 Reconnecting...")
-                startBot()
-            }
+            console.log("❌ Koneksi terputus")
         }
     })
 }
