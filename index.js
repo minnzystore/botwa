@@ -27,7 +27,7 @@ async function startBot() {
 
             setTimeout(async () => {
                 try {
-                    const nomor = "6283847956426"
+                    const nomor = "6285798407870"
                     const code = await sock.requestPairingCode(nomor)
 
                     console.log("\n🔑 KODE PAIRING:", code)
