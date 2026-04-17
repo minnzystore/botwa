@@ -33,6 +33,8 @@ module.exports = {
 • .confess
 • .ttmp4
 • .ttmp3
+• .ytmp4
+• .ytmp3
 
 ✧ Mikasa Bot 🤍
 `
