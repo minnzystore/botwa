@@ -1,6 +1,6 @@
 module.exports = {
     name: "kick",
-    execute: async (sock, from, text, db, safeSend, confessDB, OWNER, msg) => {
+    execute: async (sock, from, text, db, safeSend, confessDB, owner, msg) => {
 
         try {
             // ❌ hanya untuk grup
@@ -10,60 +10,73 @@ module.exports = {
                 })
             }
 
-            // 🔥 FIX PARTICIPANT (ANTI ERROR)
-            const sender = msg?.key?.participant || msg?.key?.remoteJid
+            // 🔥 ambil sender (fix error undefined)
+            const sender = msg.key.participant || msg.key.remoteJid
 
-            // 🔍 ambil data grup
+            // 🔥 ambil nomor bot (FIX FORMAT)
+            const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net"
+
+            // 🔍 ambil metadata grup
             const metadata = await sock.groupMetadata(from)
             const participants = metadata.participants
 
-            // 🔐 cek admin
-            const isAdmin = participants.find(p => p.id === sender)?.admin
-            const isBotAdmin = participants.find(p => p.id === sock.user.id)?.admin
+            // 🔐 cek admin user
+            const isAdmin =
+                participants.find(p => p.id === sender)?.admin === "admin" ||
+                participants.find(p => p.id === sender)?.admin === "superadmin"
 
-            if (!isAdmin && sender !== OWNER) {
+            // 🔐 cek admin bot
+            const isBotAdmin =
+                participants.find(p => p.id === botNumber)?.admin === "admin" ||
+                participants.find(p => p.id === botNumber)?.admin === "superadmin"
+
+            // ❌ bukan admin
+            if (!isAdmin && sender !== owner) {
                 return safeSend(sock, from, {
                     text: "❌ Kamu bukan admin!"
                 })
             }
 
+            // ❌ bot bukan admin
             if (!isBotAdmin) {
                 return safeSend(sock, from, {
                     text: "❌ Bot bukan admin!"
                 })
             }
 
-            // =========================
-            // 🎯 AMBIL TARGET (TAG / REPLY)
-            // =========================
-            let target
-
+            // 🎯 ambil target dari tag
             const mentioned = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid
-            const quoted = msg.message?.extendedTextMessage?.contextInfo?.participant
 
-            if (mentioned && mentioned.length > 0) {
-                target = mentioned[0]
-            } else if (quoted) {
-                target = quoted
-            }
-
-            if (!target) {
+            if (!mentioned || mentioned.length === 0) {
                 return safeSend(sock, from, {
-                    text: "❌ Tag atau reply member yang mau di kick!\n\nContoh:\n• kick @user\n• reply pesan lalu ketik kick"
+                    text: "❌ Tag member yang mau di kick!\n\nContoh:\nkick @user"
                 })
             }
 
+            const target = mentioned[0]
+
             // 🚫 jangan kick owner
-            if (target === OWNER) {
+            if (target === owner) {
                 return safeSend(sock, from, {
                     text: "❌ Tidak bisa kick owner!"
                 })
             }
 
-            // 🚫 jangan kick diri sendiri (optional)
-            if (target === sender) {
+            // 🚫 jangan kick bot sendiri
+            if (target === botNumber) {
                 return safeSend(sock, from, {
-                    text: "❌ Kamu tidak bisa kick diri sendiri!"
+                    text: "❌ Tidak bisa kick bot!"
+                })
+            }
+
+            // 🚫 jangan kick admin lain (opsional tapi bagus)
+            const isTargetAdmin =
+                participants.find(p => p.id === target)?.admin === "admin" ||
+                participants.find(p => p.id === target)?.admin === "superadmin"
+
+            if (isTargetAdmin) {
+                return safeSend(sock, from, {
+                    text: "❌ Tidak bisa kick sesama admin!"
                 })
             }
 
@@ -77,7 +90,7 @@ module.exports = {
         } catch (err) {
             console.log("KICK ERROR:", err)
 
-            safeSend(sock, from, {
+            await safeSend(sock, from, {
                 text: "❌ Terjadi error saat kick!"
             })
         }
