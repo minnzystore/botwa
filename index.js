@@ -134,7 +134,10 @@ async function startBot() {
         try {
 
             const m = msg.messages?.[0]
-            if (!m?.message || m.key.fromMe || m.key.remoteJid === "status@broadcast") return
+
+            // 🔥 FIX ANTI ERROR
+            if (!m || !m.message || !m.key) return
+            if (m.key.fromMe || m.key.remoteJid === "status@broadcast") return
 
             const id = m.key.id
             if (!id || global.processed.has(id)) return
@@ -142,7 +145,9 @@ async function startBot() {
             setTimeout(() => global.processed.delete(id), 60000)
 
             const from = m.key.remoteJid
-            const sender = m.key.participant || m.key.remoteJid
+
+            // 🔥 FIX PARTICIPANT (INI YANG PENTING)
+            const sender = m?.key?.participant || m?.key?.remoteJid
             const userJid = sender
 
             const pushname =
@@ -176,7 +181,7 @@ async function startBot() {
 
             let db = loadDB()
 
-            // ✅ FIX SAVE DB
+            // ✅ SAVE USER
             if (!db[userJid]) {
                 db[userJid] = {
                     name: pushname,
