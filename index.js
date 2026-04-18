@@ -1,9 +1,11 @@
-const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys")
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require("@whiskeysockets/baileys")
 const P = require("pino")
 const qrcode = require("qrcode-terminal")
 const fs = require("fs")
 
 const { loadDB, saveDB, queue, runQueue } = require("./lib/system")
+
+const owner = "6283847956426@s.whatsapp.net"
 
 global.processed = new Set()
 global.lastMsg = {}
@@ -89,7 +91,7 @@ async function startBot() {
     sock.ev.on("creds.update", saveCreds)
 
     // =========================
-    // 🔥 ANTI MATI (AUTO RECONNECT)
+    // CONNECTION
     // =========================
     sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect, qr } = update
@@ -101,14 +103,21 @@ async function startBot() {
         }
 
         if (connection === "close") {
-            console.log("❌ DISCONNECT → RESTART...")
+            const reason = lastDisconnect?.error?.output?.statusCode
 
-            setTimeout(() => {
-                startBot()
-            }, 3000)
+            console.log("❌ DISCONNECT:", reason)
+
+            if (reason !== DisconnectReason.loggedOut) {
+                setTimeout(() => startBot(), 3000)
+            } else {
+                console.log("⚠️ Scan ulang QR!")
+            }
         }
     })
 
+    // =========================
+    // LOAD COMMAND
+    // =========================
     const commands = new Map()
 
     if (fs.existsSync("./commands")) {
@@ -118,6 +127,9 @@ async function startBot() {
         }
     }
 
+    // =========================
+    // MESSAGE HANDLER
+    // =========================
     sock.ev.on("messages.upsert", async (msg) => {
         try {
 
@@ -130,15 +142,13 @@ async function startBot() {
             setTimeout(() => global.processed.delete(id), 60000)
 
             const from = m.key.remoteJid
-
             const sender = m.key.participant || m.key.remoteJid
+            const userJid = sender
 
             const pushname =
                 m.pushName ||
                 m.message?.pushName ||
                 "User"
-
-            const userJid = sender
 
             // =========================
             // ANTI SPAM
@@ -166,22 +176,23 @@ async function startBot() {
 
             let db = loadDB()
 
+            // ✅ FIX SAVE DB
             if (!db[userJid]) {
                 db[userJid] = {
                     name: pushname,
                     createdAt: date,
                     createdTime: time
                 }
+                saveDB(db)
             }
 
             // =========================
-            // CONFESS SYSTEM (REPLY 1X)
+            // CONFESS SYSTEM
             // =========================
             const context = m.message?.extendedTextMessage?.contextInfo
             const replyId = context?.stanzaId
 
             if (replyId && global.confessDB[replyId]) {
-
                 const session = global.confessDB[replyId]
 
                 if (!session.used) {
@@ -192,7 +203,7 @@ async function startBot() {
                     })
 
                     await safeSend(sock, from, {
-                        text: "⚠️ Reply sudah digunakan (1x saja)"
+                        text: "⚠️ Reply hanya bisa 1x"
                     })
                 }
 
@@ -209,16 +220,16 @@ async function startBot() {
 
             queue.push(async () => {
                 try {
-                    await cmd.execute(sock, userJid, text, db, safeSend, global.confessDB)
+                    await cmd.execute(sock, from, text, db, safeSend, global.confessDB, owner, m)
                 } catch (e) {
-                    console.log("CMD ERROR", e)
+                    console.log("CMD ERROR:", e)
                 }
             })
 
             runQueue()
 
         } catch (e) {
-            console.log("ERROR", e)
+            console.log("ERROR:", e)
         }
     })
 

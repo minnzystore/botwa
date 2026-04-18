@@ -35,6 +35,7 @@ module.exports = {
 • .ttmp3
 • .ytmp4
 • .ytmp3
+• .kick
 
 ✧ Mikasa Bot 🤍
 `
