@@ -91,7 +91,7 @@ async function startBot() {
     sock.ev.on("creds.update", saveCreds)
 
     // =========================
-    // CONNECTION
+    // CONNECTION (AUTO RECONNECT FIX)
     // =========================
     sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect, qr } = update
@@ -104,13 +104,12 @@ async function startBot() {
 
         if (connection === "close") {
             const reason = lastDisconnect?.error?.output?.statusCode
-
             console.log("❌ DISCONNECT:", reason)
 
             if (reason !== DisconnectReason.loggedOut) {
                 setTimeout(() => startBot(), 3000)
             } else {
-                console.log("⚠️ Scan ulang QR!")
+                console.log("⚠️ Session logout, scan ulang QR")
             }
         }
     })
@@ -123,7 +122,9 @@ async function startBot() {
     if (fs.existsSync("./commands")) {
         for (const file of fs.readdirSync("./commands")) {
             const cmd = require(`./commands/${file}`)
-            if (cmd?.name && cmd?.execute) commands.set(cmd.name, cmd)
+            if (cmd?.name && cmd?.execute) {
+                commands.set(cmd.name.toLowerCase(), cmd)
+            }
         }
     }
 
@@ -135,7 +136,6 @@ async function startBot() {
 
             const m = msg.messages?.[0]
 
-            // 🔥 FIX ANTI ERROR
             if (!m || !m.message || !m.key) return
             if (m.key.fromMe || m.key.remoteJid === "status@broadcast") return
 
@@ -146,8 +146,8 @@ async function startBot() {
 
             const from = m.key.remoteJid
 
-            // 🔥 FIX PARTICIPANT (INI YANG PENTING)
-            const sender = m?.key?.participant || m?.key?.remoteJid
+            // 🔥 FIX PARTICIPANT
+            const sender = m.key.participant || m.key.remoteJid
             const userJid = sender
 
             const pushname =
@@ -181,7 +181,9 @@ async function startBot() {
 
             let db = loadDB()
 
-            // ✅ SAVE USER
+            // =========================
+            // SAVE USER
+            // =========================
             if (!db[userJid]) {
                 db[userJid] = {
                     name: pushname,
@@ -238,6 +240,9 @@ async function startBot() {
         }
     })
 
+    // =========================
+    // AUTO CLEAN MEMORY
+    // =========================
     setInterval(() => {
         global.processed.clear()
         global.reqCount = {}
