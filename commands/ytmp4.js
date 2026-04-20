@@ -1,47 +1,36 @@
-const ytdl = require("ytdl-core");
-const fs = require("fs");
 const { exec } = require("child_process");
+const fs = require("fs");
 
 module.exports = {
   name: "ytmp4",
   execute: async (sock, from, text) => {
     try {
-      const args = text.split(" ")
-      const url = args[1]
-
-      if (!url || !ytdl.validateURL(url)) {
-        return sock.sendMessage(from, {
-          text: "❌ Contoh:\n.ytmp4 https://youtube.com/xxxxx"
-        })
+      const url = text.split(" ")[1];
+      if (!url) {
+        return sock.sendMessage(from, { text: "❌ Contoh:\n.ytmp4 link" });
       }
 
-      const info = await ytdl.getInfo(url)
-      const title = info.videoDetails.title.replace(/[^\w\s]/gi, "")
-      const output = `${Date.now()}-${title}.mp4`
+      await sock.sendMessage(from, { text: "⏳ Downloading video..." });
 
-      const stream = ytdl(url, {
-        filter: "videoandaudio",
-        quality: "highest"
-      })
+      const file = `./temp/${Date.now()}.mp4`;
 
-      const ffmpeg = exec(
-        `ffmpeg -i pipe:0 -c:v copy -c:a aac -y "${output}"`
-      )
+      exec(`yt-dlp -f mp4 -o "${file}" ${url}`, async (err) => {
+        if (err) {
+          console.log(err);
+          return sock.sendMessage(from, { text: "❌ Gagal download video" });
+        }
 
-      stream.pipe(ffmpeg.stdin)
-
-      ffmpeg.on("close", async () => {
         await sock.sendMessage(from, {
-          video: fs.readFileSync(output),
-          caption: `✅ ${info.videoDetails.title}`
-        })
+          video: fs.readFileSync(file),
+          caption: "✅ Done"
+        });
 
-        fs.unlinkSync(output)
-      })
+        fs.unlinkSync(file);
+      });
 
-    } catch (err) {
-      console.log(err)
-      sock.sendMessage(from, { text: "❌ Error MP4" })
+    } catch (e) {
+      console.log(e);
+      sock.sendMessage(from, { text: "❌ Error MP4" });
     }
   }
-}
+};

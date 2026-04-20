@@ -14,12 +14,16 @@ global.confessDB = {}
 
 const sleep = (ms) => new Promise(res => setTimeout(res, ms))
 
+// ❗ ANTI CRASH
+process.on("uncaughtException", (err) => {
+    console.log("IGNORED ERROR:", err.message)
+})
+
 // =========================
-// WIB TIME FIX
+// WIB TIME
 // =========================
 function getWIBTime() {
     const now = new Date()
-
     const formatter = new Intl.DateTimeFormat("id-ID", {
         timeZone: "Asia/Jakarta",
         year: "numeric",
@@ -30,7 +34,6 @@ function getWIBTime() {
         second: "2-digit",
         hour12: false
     })
-
     const parts = formatter.formatToParts(now)
     const get = (type) => parts.find(p => p.type === type)?.value
 
@@ -85,14 +88,12 @@ async function startBot() {
     const sock = makeWASocket({
         version,
         logger: P({ level: "silent" }),
-        auth: state
+        auth: state,
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     })
 
     sock.ev.on("creds.update", saveCreds)
 
-    // =========================
-    // CONNECTION (AUTO RECONNECT FIX)
-    // =========================
     sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect, qr } = update
 
@@ -108,8 +109,6 @@ async function startBot() {
 
             if (reason !== DisconnectReason.loggedOut) {
                 setTimeout(() => startBot(), 3000)
-            } else {
-                console.log("⚠️ Session logout, scan ulang QR")
             }
         }
     })
@@ -129,108 +128,33 @@ async function startBot() {
     }
 
     // =========================
-    // MESSAGE HANDLER
+    // MESSAGE
     // =========================
     sock.ev.on("messages.upsert", async (msg) => {
         try {
-
             const m = msg.messages?.[0]
-
-            if (!m || !m.message || !m.key) return
-            if (m.key.fromMe || m.key.remoteJid === "status@broadcast") return
+            if (!m || !m.message || m.key.fromMe) return
 
             const id = m.key.id
-            if (!id || global.processed.has(id)) return
+            if (global.processed.has(id)) return
             global.processed.add(id)
-            setTimeout(() => global.processed.delete(id), 60000)
 
             const from = m.key.remoteJid
-
-            // 🔥 FIX PARTICIPANT
-            const sender = m.key.participant || m.key.remoteJid
-            const userJid = sender
-
-            const pushname =
-                m.pushName ||
-                m.message?.pushName ||
-                "User"
-
-            // =========================
-            // ANTI SPAM
-            // =========================
-            const nowTime = Date.now()
-            if (global.lastMsg[from] && nowTime - global.lastMsg[from] < 2000) return
-            global.lastMsg[from] = nowTime
-
-            if (!allowRequest(from)) return
-
             const text = (
                 m.message?.conversation ||
                 m.message?.extendedTextMessage?.text ||
-                m.message?.imageMessage?.caption ||
-                m.message?.videoMessage?.caption ||
                 ""
-            ).toString().trim()
+            ).trim()
 
             if (!text) return
 
-            const { date, time } = getWIBTime()
-
-            console.log("📩 MSG:", from, text)
-            console.log(`🕒 WIB TIME: ${date} | ${time}`)
-
-            let db = loadDB()
-
-            // =========================
-            // SAVE USER
-            // =========================
-            if (!db[userJid]) {
-                db[userJid] = {
-                    name: pushname,
-                    createdAt: date,
-                    createdTime: time
-                }
-                saveDB(db)
-            }
-
-            // =========================
-            // CONFESS SYSTEM
-            // =========================
-            const context = m.message?.extendedTextMessage?.contextInfo
-            const replyId = context?.stanzaId
-
-            if (replyId && global.confessDB[replyId]) {
-                const session = global.confessDB[replyId]
-
-                if (!session.used) {
-                    session.used = true
-
-                    await safeSend(sock, session.from, {
-                        text: `💬 Reply confess:\n\n${text}`
-                    })
-
-                    await safeSend(sock, from, {
-                        text: "⚠️ Reply hanya bisa 1x"
-                    })
-                }
-
-                return
-            }
-
-            // =========================
-            // COMMAND HANDLER
-            // =========================
             const command = text.split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "")
             const cmd = commands.get(command)
 
             if (!cmd) return
 
             queue.push(async () => {
-                try {
-                    await cmd.execute(sock, from, text, db, safeSend, global.confessDB, owner, m)
-                } catch (e) {
-                    console.log("CMD ERROR:", e)
-                }
+                await cmd.execute(sock, from, text)
             })
 
             runQueue()
@@ -239,14 +163,6 @@ async function startBot() {
             console.log("ERROR:", e)
         }
     })
-
-    // =========================
-    // AUTO CLEAN MEMORY
-    // =========================
-    setInterval(() => {
-        global.processed.clear()
-        global.reqCount = {}
-    }, 60000)
 }
 
 startBot()

@@ -1,44 +1,36 @@
-const ytdl = require("ytdl-core");
-const fs = require("fs");
 const { exec } = require("child_process");
+const fs = require("fs");
 
 module.exports = {
   name: "ytmp3",
   execute: async (sock, from, text) => {
     try {
-      const args = text.split(" ")
-      const url = args[1]
-
-      if (!url || !ytdl.validateURL(url)) {
-        return sock.sendMessage(from, {
-          text: "❌ Contoh:\n.ytmp3 https://youtube.com/xxxxx"
-        })
+      const url = text.split(" ")[1];
+      if (!url) {
+        return sock.sendMessage(from, { text: "❌ Contoh:\n.ytmp3 link" });
       }
 
-      const info = await ytdl.getInfo(url)
-      const title = info.videoDetails.title.replace(/[^\w\s]/gi, "")
-      const output = `${Date.now()}-${title}.mp3`
+      await sock.sendMessage(from, { text: "⏳ Downloading audio..." });
 
-      const stream = ytdl(url, { filter: "audioonly" })
+      const file = `./temp/${Date.now()}.mp3`;
 
-      const ffmpeg = exec(
-        `ffmpeg -i pipe:0 -vn -ab 128k -ar 44100 -y "${output}"`
-      )
+      exec(`yt-dlp -x --audio-format mp3 -o "${file}" ${url}`, async (err) => {
+        if (err) {
+          console.log(err);
+          return sock.sendMessage(from, { text: "❌ Gagal download audio" });
+        }
 
-      stream.pipe(ffmpeg.stdin)
-
-      ffmpeg.on("close", async () => {
         await sock.sendMessage(from, {
-          audio: fs.readFileSync(output),
-          mimetype: "audio/mp4"
-        })
+          audio: fs.readFileSync(file),
+          mimetype: "audio/mpeg"
+        });
 
-        fs.unlinkSync(output)
-      })
+        fs.unlinkSync(file);
+      });
 
-    } catch (err) {
-      console.log(err)
-      sock.sendMessage(from, { text: "❌ Error MP3" })
+    } catch (e) {
+      console.log(e);
+      sock.sendMessage(from, { text: "❌ Error MP3" });
     }
   }
-}
+};
